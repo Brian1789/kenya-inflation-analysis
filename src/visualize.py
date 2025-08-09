@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+import numpy as np
 
 def plot_forecast_comparison(arima_df, prophet_df):
     fig, ax = plt.subplots(figsize=(14, 6))
@@ -23,6 +24,13 @@ def generate_report(arima_df, prophet_df, output_dir):
     with open(os.path.join(output_dir, "final_report.md"), 'w') as f:
         f.write("# Kenya Inflation Forecast Report\n")
         f.write("![Forecast Comparison](forecast_comparison.png)\n")
+
+def compute_metrics(actual, forecast):
+    actual, forecast = np.array(actual), np.array(forecast)
+    mape = np.mean(np.abs((actual - forecast) / actual)) * 100
+    rmse = np.sqrt(np.mean((actual - forecast) ** 2))
+    mae = np.mean(np.abs(actual - forecast))
+    return mape, rmse, mae
 
 if __name__ == "__main__":
     arima_path = os.path.join("..", "results", "forecasts", "arima_forecast.csv")

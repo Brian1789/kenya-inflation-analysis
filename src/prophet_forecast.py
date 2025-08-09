@@ -42,4 +42,5 @@ def prophet_forecast(df):
     future = model.make_future_dataframe(periods=FORECAST_YEARS, freq='Y')
     forecast = model.predict(future)
     logger.info("Prophet forecast generated successfully.")
-    return forecast[['ds', 'yhat']].tail(FORECAST_YEARS)
+    tail = forecast.tail(FORECAST_YEARS)
+    return tail[['ds', 'yhat', 'yhat_lower', 'yhat_upper']]

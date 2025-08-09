@@ -70,5 +70,12 @@ def lstm_forecast(df, look_back=LSTM_LOOK_BACK):
     last_year = df['Year'].dt.year.iloc[-1] if hasattr(df['Year'], 'dt') else int(df['Year'].iloc[-1])
     forecast_years_list = [last_year + i for i in range(1, FORECAST_YEARS + 1)]
 
+    # Fix: include nan columns for consistency
+    forecast_df = pd.DataFrame({
+        'Year': forecast_years_list,
+        'Forecast': forecasts,
+        'Forecast_lower': [float('nan')] * len(forecasts),
+        'Forecast_upper': [float('nan')] * len(forecasts)
+    })
     logger.info("LSTM forecast generated successfully.")
-    return pd.DataFrame({'Year': forecast_years_list, 'Forecast': forecasts})
+    return forecast_df

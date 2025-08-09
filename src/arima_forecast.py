@@ -37,16 +37,16 @@ def arima_forecast(df):
     # Fit ARIMA model
     model = ARIMA(df['Inflation Rate'], order=ARIMA_ORDER)
     model_fit = model.fit()
-
-    # Forecast future periods
-    forecast = model_fit.forecast(steps=FORECAST_YEARS)
-    # Fix: get integer year for addition
+    forecast_obj = model_fit.get_forecast(steps=FORECAST_YEARS)
+    forecast = forecast_obj.predicted_mean
+    conf_int = forecast_obj.conf_int()
     last_year = df['Year'].dt.year.iloc[-1] if hasattr(df['Year'], 'dt') else int(df['Year'].iloc[-1])
     forecast_years = [last_year + i for i in range(1, FORECAST_YEARS + 1)]
-
     forecast_df = pd.DataFrame({
         'Year': forecast_years,
-        'Forecast': forecast.values
+        'Forecast': forecast.values,
+        'Forecast_lower': conf_int.iloc[:, 0].values,
+        'Forecast_upper': conf_int.iloc[:, 1].values
     })
     logger.info("ARIMA forecast generated successfully.")
     return forecast_df

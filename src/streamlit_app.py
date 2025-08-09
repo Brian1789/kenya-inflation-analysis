@@ -31,11 +31,41 @@ def plot_forecast_plotly(historical_df, arima_df, prophet_df, lstm_df, models_to
     ))
     # Forecasts
     if 'ARIMA' in models_to_show and not arima_df.empty:
-        fig.add_trace(go.Scatter(x=arima_df['Year'], y=arima_df['Forecast'], mode='lines+markers', name='ARIMA'))
+        fig.add_trace(go.Scatter(
+            x=arima_df['Year'],
+            y=arima_df['Forecast'],
+            mode='lines+markers',
+            name='ARIMA',
+            hovertemplate="Model: %{name}<br>Year: %{x}<br>Forecast: %{y:.2f}<extra></extra>"
+        ))
+        fig.add_trace(go.Scatter(
+            x=arima_df['Year'],
+            y=arima_df['Forecast_upper'],
+            fill=None, mode='lines', line=dict(color='rgba(0,0,0,0)'),
+            showlegend=False
+        ))
+        fig.add_trace(go.Scatter(
+            x=arima_df['Year'],
+            y=arima_df['Forecast_lower'],
+            fill='tonexty', mode='lines', line=dict(color='rgba(0,0,0,0)'),
+            fillcolor='rgba(31,119,180,0.2)', showlegend=True, name='ARIMA CI'
+        ))
     if 'Prophet' in models_to_show and not prophet_df.empty:
-        fig.add_trace(go.Scatter(x=prophet_df['ds'].dt.year if 'ds' in prophet_df else prophet_df['Year'], y=prophet_df['yhat'] if 'yhat' in prophet_df else prophet_df['Forecast'], mode='lines+markers', name='Prophet'))
+        fig.add_trace(go.Scatter(
+            x=prophet_df['ds'].dt.year if 'ds' in prophet_df else prophet_df['Year'],
+            y=prophet_df['yhat'] if 'yhat' in prophet_df else prophet_df['Forecast'],
+            mode='lines+markers',
+            name='Prophet',
+            hovertemplate="Model: %{name}<br>Year: %{x}<br>Forecast: %{y:.2f}<extra></extra>"
+        ))
     if 'LSTM' in models_to_show and not lstm_df.empty:
-        fig.add_trace(go.Scatter(x=lstm_df['Year'], y=lstm_df['Forecast'], mode='lines+markers', name='LSTM'))
+        fig.add_trace(go.Scatter(
+            x=lstm_df['Year'],
+            y=lstm_df['Forecast'],
+            mode='lines+markers',
+            name='LSTM',
+            hovertemplate="Model: %{name}<br>Year: %{x}<br>Forecast: %{y:.2f}<extra></extra>"
+        ))
     fig.update_layout(title='Historical vs Forecast Comparison', xaxis_title='Year', yaxis_title='Inflation Rate (%)')
     return fig
 
@@ -97,6 +127,8 @@ def main():
         default=model_options
     )
 
+    dataset_choice = st.sidebar.selectbox("Select Dataset", ["Monthly", "Quarterly"])
+
     if uploaded_file:
         try:
             raw_df = load_data(uploaded_file)
@@ -121,7 +153,7 @@ def main():
                 'seasonality_mode': prophet_seasonality
             }
 
-            tab1, tab2, tab3 = st.tabs(["EDA", "Forecasts", "Comparison"])
+            tab1, tab2, tab3 = st.tabs(["📊 EDA", "📈 Forecasts", "🔀 Comparison"])
 
             with tab1:
                 st.subheader("Summary Statistics")
@@ -148,7 +180,7 @@ def main():
                 col1, col2, col3 = st.columns(3)
                 col1.metric("Latest Inflation", f"{cleaned_df['Inflation Rate'].iloc[-1]:.2f}%")
                 col2.metric("Forecast Range", f"{forecast_years} years")
-                col3.metric("Data Points", f"{len(cleaned_df)}")
+                col3.metric("Best Model Accuracy", f"{best_model_accuracy:.2f}%")
 
                 with col1:
                     st.write("### ARIMA Forecast")
@@ -168,14 +200,38 @@ def main():
                 fig = plot_forecast_plotly(historical_df, arima_results, prophet_results, lstm_results, models_to_show)
                 st.plotly_chart(fig, use_container_width=True)
 
+            # Performance Metrics DataFrame
+            perf_df = pd.DataFrame({
+                "Model": ["ARIMA", "Prophet", "LSTM"],
+                "MAPE": [arima_mape, prophet_mape, lstm_mape],
+                "RMSE": [arima_rmse, prophet_rmse, lstm_rmse],
+                "MAE": [arima_mae, prophet_mae, lstm_mae]
+            })
+            st.dataframe(perf_df)
+
             st.success("Forecasts generated successfully!")
 
         except Exception as e:
             st.error(f"Error: {e}")
 
     st.sidebar.markdown("### ⚙️ Model Controls")
+    st.sidebar.download_button("Download Template CSV", open("template.csv").read(), "template.csv")
 
-    st.markdown("<hr><p style='text-align: center; color: gray;'>Made with Streamlit & Plotly • 2025</p>", unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div style='display: flex; align-items: center; justify-content: center;'>
+            <img src='https://knbs.or.ke/wp-content/uploads/2021/11/KNBS-Logo.png' height='60'>
+            <span style='font-size:2em; color:#1f77b4; margin-left:20px;'>Kenya Inflation Analysis Dashboard</span>
+            <img src='https://festival.globaldatafest.org/logo.png' height='60' style='margin-left:20px;'>
+        </div>
+        """, unsafe_allow_html=True
+    )
+
+    # Add vertical line and annotation for currency devaluation
+    if 'ARIMA' in models_to_show or 'Prophet' in models_to_show or 'LSTM' in models_to_show:
+        peak_value = historical_df['Inflation Rate'].max()
+        fig.add_vline(x=1993, line_dash="dash", line_color="red")
+        fig.add_annotation(x=1993, y=peak_value, text="Currency devaluation", showarrow=True)
 
 if __name__ == "__main__":
     main()
