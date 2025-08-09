@@ -9,6 +9,8 @@ from lstm_forecast import lstm_forecast
 from eda import display_eda_plots
 from visualize import plot_forecast_comparison
 from model_config import ARIMA_ORDER, FORECAST_YEARS, LSTM_LOOK_BACK, LSTM_EPOCHS, LSTM_UNITS, PROPHET_PARAMS
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from statsmodels.tsa.stattools import acf, pacf
 
 st.set_page_config(page_title="Kenya Inflation Dashboard", layout="wide")
 
@@ -38,6 +40,20 @@ def plot_forecast_plotly(historical_df, arima_df, prophet_df, lstm_df, models_to
     if 'LSTM' in models_to_show and not lstm_df.empty:
         fig.add_trace(go.Scatter(x=lstm_df['Year'], y=lstm_df['Forecast'], mode='lines+markers', name='LSTM'))
     fig.update_layout(title='Historical vs Forecast Comparison', xaxis_title='Year', yaxis_title='Inflation Rate (%)')
+    return fig
+
+def plot_acf_plotly(series, lags=20, title="ACF"):
+    acf_vals = acf(series, nlags=lags)
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=list(range(len(acf_vals))), y=acf_vals, marker_color='#1f77b4'))
+    fig.update_layout(title=title, xaxis_title="Lag", yaxis_title="ACF", template="plotly_white")
+    return fig
+
+def plot_pacf_plotly(series, lags=20, title="PACF"):
+    pacf_vals = pacf(series, nlags=lags)
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=list(range(len(pacf_vals))), y=pacf_vals, marker_color='#ff7f0e'))
+    fig.update_layout(title=title, xaxis_title="Lag", yaxis_title="PACF", template="plotly_white")
     return fig
 
 def main():
@@ -94,6 +110,10 @@ def main():
 
             with tab1:
                 display_eda_plots(cleaned_df)
+                st.subheader("Autocorrelation (ACF)")
+                st.plotly_chart(plot_acf_plotly(cleaned_df['Inflation Rate'], lags=20), use_container_width=True)
+                st.subheader("Partial Autocorrelation (PACF)")
+                st.plotly_chart(plot_pacf_plotly(cleaned_df['Inflation Rate'], lags=20), use_container_width=True)
 
             with st.spinner("Generating forecasts..."):
                 arima_results = arima_forecast(cleaned_df)
@@ -106,6 +126,10 @@ def main():
 
             with tab2:
                 col1, col2, col3 = st.columns(3)
+                col1.metric("Latest Inflation", f"{cleaned_df['Inflation Rate'].iloc[-1]:.2f}%")
+                col2.metric("Forecast Range", f"{forecast_years} years")
+                col3.metric("Data Points", f"{len(cleaned_df)}")
+
                 with col1:
                     st.write("### ARIMA Forecast")
                     st.dataframe(arima_results)
@@ -128,6 +152,8 @@ def main():
 
         except Exception as e:
             st.error(f"Error: {e}")
+
+    st.sidebar.markdown("### ⚙️ Model Controls")
 
 if __name__ == "__main__":
     main()
