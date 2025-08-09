@@ -157,6 +157,33 @@ def main():
 
             tab1, tab2, tab3 = st.tabs(["📊 EDA", "📈 Forecasts", "🔀 Comparison"])
 
+            with st.spinner("Generating forecasts..."):
+                arima_results = arima_forecast(cleaned_df)
+                prophet_results = prophet_forecast(cleaned_df)
+                if len(cleaned_df) < lstm_look_back + 1:
+                    lstm_results = pd.DataFrame({'Year': [], 'Forecast': []})
+                    st.warning(f"Not enough data points for LSTM forecasting (minimum {lstm_look_back + 1} required). Please reduce 'LSTM Look Back' or upload more data.")
+                else:
+                    lstm_results = lstm_forecast(cleaned_df, look_back=lstm_look_back)
+
+            # Performance Metrics DataFrame
+            N = min(len(cleaned_df), FORECAST_YEARS)
+            actual = cleaned_df['Inflation Rate'].iloc[-N:]
+
+            arima_mape, arima_rmse, arima_mae = compute_metrics(actual, arima_results['Forecast'][:N])
+            prophet_mape, prophet_rmse, prophet_mae = compute_metrics(actual, prophet_results['yhat'][:N])
+            lstm_mape, lstm_rmse, lstm_mae = compute_metrics(actual, lstm_results['Forecast'][:N])
+
+            # Find best model by MAPE (lowest error)
+            best_model_accuracy = 100 - min(arima_mape, prophet_mape, lstm_mape)
+
+            perf_df = pd.DataFrame({
+                "Model": ["ARIMA", "Prophet", "LSTM"],
+                "MAPE": [arima_mape, prophet_mape, lstm_mape],
+                "RMSE": [arima_rmse, prophet_rmse, lstm_rmse],
+                "MAE": [arima_mae, prophet_mae, lstm_mae]
+            })
+
             with tab1:
                 st.subheader("Summary Statistics")
                 st.dataframe(cleaned_df.describe().T)
@@ -168,15 +195,6 @@ def main():
                 st.plotly_chart(plot_acf_plotly(cleaned_df['Inflation Rate'], lags=20), use_container_width=True)
                 st.subheader("Partial Autocorrelation (PACF)")
                 st.plotly_chart(plot_pacf_plotly(cleaned_df['Inflation Rate'], lags=20), use_container_width=True)
-
-            with st.spinner("Generating forecasts..."):
-                arima_results = arima_forecast(cleaned_df)
-                prophet_results = prophet_forecast(cleaned_df)
-                if len(cleaned_df) < lstm_look_back + 1:
-                    lstm_results = pd.DataFrame({'Year': [], 'Forecast': []})
-                    st.warning(f"Not enough data points for LSTM forecasting (minimum {lstm_look_back + 1} required). Please reduce 'LSTM Look Back' or upload more data.")
-                else:
-                    lstm_results = lstm_forecast(cleaned_df, look_back=lstm_look_back)
 
             with tab2:
                 col1, col2, col3 = st.columns(3)
@@ -197,29 +215,16 @@ def main():
                     st.dataframe(lstm_results)
                     st.download_button("Download LSTM Results", lstm_results.to_csv(index=False), "lstm_forecast.csv")
 
+                st.dataframe(perf_df)
+
             with tab3:
                 st.write("### Historical vs Forecast Comparison (Interactive)")
                 fig = plot_forecast_plotly(historical_df, arima_results, prophet_results, lstm_results, models_to_show)
+                # Add vertical line and annotation for currency devaluation
+                peak_value = historical_df['Inflation Rate'].max()
+                fig.add_vline(x=1993, line_dash="dash", line_color="red")
+                fig.add_annotation(x=1993, y=peak_value, text="Currency devaluation", showarrow=True)
                 st.plotly_chart(fig, use_container_width=True)
-
-            # Performance Metrics DataFrame
-            N = min(len(cleaned_df), FORECAST_YEARS)
-            actual = cleaned_df['Inflation Rate'].iloc[-N:]
-
-            arima_mape, arima_rmse, arima_mae = compute_metrics(actual, arima_results['Forecast'][:N])
-            prophet_mape, prophet_rmse, prophet_mae = compute_metrics(actual, prophet_results['yhat'][:N])
-            lstm_mape, lstm_rmse, lstm_mae = compute_metrics(actual, lstm_results['Forecast'][:N])
-
-            # Find best model by MAPE (lowest error)
-            best_model_accuracy = 100 - min(arima_mape, prophet_mape, lstm_mape)
-
-            perf_df = pd.DataFrame({
-                "Model": ["ARIMA", "Prophet", "LSTM"],
-                "MAPE": [arima_mape, prophet_mape, lstm_mape],
-                "RMSE": [arima_rmse, prophet_rmse, lstm_rmse],
-                "MAE": [arima_mae, prophet_mae, lstm_mae]
-            })
-            st.dataframe(perf_df)
 
             st.success("Forecasts generated successfully!")
 
@@ -239,12 +244,6 @@ def main():
         </div>
         """, unsafe_allow_html=True
     )
-
-    # Add vertical line and annotation for currency devaluation
-    if 'ARIMA' in models_to_show or 'Prophet' in models_to_show or 'LSTM' in models_to_show:
-        peak_value = historical_df['Inflation Rate'].max()
-        fig.add_vline(x=1993, line_dash="dash", line_color="red")
-        fig.add_annotation(x=1993, y=peak_value, text="Currency devaluation", showarrow=True)
 
 if __name__ == "__main__":
     main()
