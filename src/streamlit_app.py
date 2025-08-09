@@ -6,10 +6,7 @@ from preprocess import preprocess_data
 from arima_forecast import arima_forecast
 from prophet_forecast import prophet_forecast
 from lstm_forecast import lstm_forecast
-from eda import display_eda_plots
-from visualize import plot_forecast_comparison
 from model_config import ARIMA_ORDER, FORECAST_YEARS, LSTM_LOOK_BACK, LSTM_EPOCHS, LSTM_UNITS, PROPHET_PARAMS
-from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.stattools import acf, pacf
 
 st.set_page_config(page_title="Kenya Inflation Dashboard", layout="wide")
@@ -54,6 +51,24 @@ def plot_pacf_plotly(series, lags=20, title="PACF"):
     fig = go.Figure()
     fig.add_trace(go.Bar(x=list(range(len(pacf_vals))), y=pacf_vals, marker_color='#ff7f0e'))
     fig.update_layout(title=title, xaxis_title="Lag", yaxis_title="PACF", template="plotly_white")
+    return fig
+
+def plot_histogram_plotly(series, title="Histogram of Inflation Rate"):
+    fig = go.Figure()
+    fig.add_trace(go.Histogram(x=series, marker_color='#636EFA', nbinsx=20))
+    fig.update_layout(title=title, xaxis_title="Inflation Rate (%)", yaxis_title="Count", template="plotly_white")
+    return fig
+
+def plot_timeseries_plotly(df, title="Inflation Rate Over Time"):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df['Year'].dt.year if hasattr(df['Year'], 'dt') else df['Year'],
+        y=df['Inflation Rate'],
+        mode='lines+markers',
+        name='Inflation Rate',
+        line=dict(color='#00CC96')
+    ))
+    fig.update_layout(title=title, xaxis_title="Year", yaxis_title="Inflation Rate (%)", template="plotly_white")
     return fig
 
 def main():
@@ -109,7 +124,12 @@ def main():
             tab1, tab2, tab3 = st.tabs(["EDA", "Forecasts", "Comparison"])
 
             with tab1:
-                display_eda_plots(cleaned_df)
+                st.subheader("Summary Statistics")
+                st.dataframe(cleaned_df.describe().T)
+                st.subheader("Inflation Rate Over Time")
+                st.plotly_chart(plot_timeseries_plotly(cleaned_df), use_container_width=True)
+                st.subheader("Histogram of Inflation Rate")
+                st.plotly_chart(plot_histogram_plotly(cleaned_df['Inflation Rate']), use_container_width=True)
                 st.subheader("Autocorrelation (ACF)")
                 st.plotly_chart(plot_acf_plotly(cleaned_df['Inflation Rate'], lags=20), use_container_width=True)
                 st.subheader("Partial Autocorrelation (PACF)")
@@ -154,6 +174,8 @@ def main():
             st.error(f"Error: {e}")
 
     st.sidebar.markdown("### ⚙️ Model Controls")
+
+    st.markdown("<hr><p style='text-align: center; color: gray;'>Made with Streamlit & Plotly • 2025</p>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
