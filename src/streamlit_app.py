@@ -20,15 +20,24 @@ def load_data(uploaded_file):
 def preprocess_cached(df):
     return preprocess_data(df)
 
-def plot_forecast_plotly(arima_df, prophet_df, lstm_df):
+def plot_forecast_plotly(historical_df, arima_df, prophet_df, lstm_df, models_to_show):
     fig = go.Figure()
-    if not arima_df.empty:
+    # Historical data
+    fig.add_trace(go.Scatter(
+        x=historical_df['Year'].dt.year if hasattr(historical_df['Year'], 'dt') else historical_df['Year'],
+        y=historical_df['Inflation Rate'],
+        mode='lines+markers',
+        name='Historical',
+        line=dict(color='black', dash='dot')
+    ))
+    # Forecasts
+    if 'ARIMA' in models_to_show and not arima_df.empty:
         fig.add_trace(go.Scatter(x=arima_df['Year'], y=arima_df['Forecast'], mode='lines+markers', name='ARIMA'))
-    if not prophet_df.empty:
+    if 'Prophet' in models_to_show and not prophet_df.empty:
         fig.add_trace(go.Scatter(x=prophet_df['ds'].dt.year if 'ds' in prophet_df else prophet_df['Year'], y=prophet_df['yhat'] if 'yhat' in prophet_df else prophet_df['Forecast'], mode='lines+markers', name='Prophet'))
-    if not lstm_df.empty:
+    if 'LSTM' in models_to_show and not lstm_df.empty:
         fig.add_trace(go.Scatter(x=lstm_df['Year'], y=lstm_df['Forecast'], mode='lines+markers', name='LSTM'))
-    fig.update_layout(title='Forecast Comparison', xaxis_title='Year', yaxis_title='Inflation Rate (%)')
+    fig.update_layout(title='Historical vs Forecast Comparison', xaxis_title='Year', yaxis_title='Inflation Rate (%)')
     return fig
 
 def main():
@@ -50,10 +59,18 @@ def main():
         lstm_epochs = st.number_input("LSTM Epochs", min_value=10, max_value=300, value=LSTM_EPOCHS, step=10, key="lstm_epochs")
         lstm_units = st.number_input("LSTM Units", min_value=10, max_value=200, value=LSTM_UNITS, step=10, key="lstm_units")
 
+    model_options = ['ARIMA', 'Prophet', 'LSTM']
+    models_to_show = st.sidebar.multiselect(
+        "Select models to compare",
+        options=model_options,
+        default=model_options
+    )
+
     if uploaded_file:
         try:
             raw_df = load_data(uploaded_file)
             cleaned_df = preprocess_cached(raw_df)
+            historical_df = cleaned_df.copy()
 
             # Dynamically set max look_back based on data length
             max_look_back = max(1, len(cleaned_df) - 1)
@@ -103,8 +120,8 @@ def main():
                     st.download_button("Download LSTM Results", lstm_results.to_csv(index=False), "lstm_forecast.csv")
 
             with tab3:
-                st.write("### Forecast Comparison (Interactive)")
-                fig = plot_forecast_plotly(arima_results, prophet_results, lstm_results)
+                st.write("### Historical vs Forecast Comparison (Interactive)")
+                fig = plot_forecast_plotly(historical_df, arima_results, prophet_results, lstm_results, models_to_show)
                 st.plotly_chart(fig, use_container_width=True)
 
             st.success("Forecasts generated successfully!")
