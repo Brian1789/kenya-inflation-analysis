@@ -8,6 +8,8 @@ from prophet_forecast import prophet_forecast
 from lstm_forecast import lstm_forecast
 from model_config import ARIMA_ORDER, FORECAST_YEARS, LSTM_LOOK_BACK, LSTM_EPOCHS, LSTM_UNITS, PROPHET_PARAMS
 from statsmodels.tsa.stattools import acf, pacf
+import io
+from visualize import compute_metrics
 
 st.set_page_config(page_title="Kenya Inflation Dashboard", layout="wide")
 
@@ -201,6 +203,16 @@ def main():
                 st.plotly_chart(fig, use_container_width=True)
 
             # Performance Metrics DataFrame
+            N = min(len(cleaned_df), FORECAST_YEARS)
+            actual = cleaned_df['Inflation Rate'].iloc[-N:]
+
+            arima_mape, arima_rmse, arima_mae = compute_metrics(actual, arima_results['Forecast'][:N])
+            prophet_mape, prophet_rmse, prophet_mae = compute_metrics(actual, prophet_results['yhat'][:N])
+            lstm_mape, lstm_rmse, lstm_mae = compute_metrics(actual, lstm_results['Forecast'][:N])
+
+            # Find best model by MAPE (lowest error)
+            best_model_accuracy = 100 - min(arima_mape, prophet_mape, lstm_mape)
+
             perf_df = pd.DataFrame({
                 "Model": ["ARIMA", "Prophet", "LSTM"],
                 "MAPE": [arima_mape, prophet_mape, lstm_mape],
@@ -215,7 +227,8 @@ def main():
             st.error(f"Error: {e}")
 
     st.sidebar.markdown("### ⚙️ Model Controls")
-    st.sidebar.download_button("Download Template CSV", open("template.csv").read(), "template.csv")
+    template_csv = "Year,Inflation Rate\n1990,15.2\n1991,18.5\n"
+    st.sidebar.download_button("Download Template CSV", data=template_csv, file_name="template.csv")
 
     st.markdown(
         """
