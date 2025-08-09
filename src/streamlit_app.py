@@ -185,8 +185,10 @@ def main():
             })
 
             with tab1:
-                st.subheader("Summary Statistics")
-                st.dataframe(cleaned_df.describe().T)
+                st.subheader("Summary Statistics (Inflation Rate)")
+                stats = cleaned_df['Inflation Rate'].describe().to_frame().T
+                stats.index = ['Inflation Rate']
+                st.dataframe(stats)
                 st.subheader("Inflation Rate Over Time")
                 st.plotly_chart(plot_timeseries_plotly(cleaned_df), use_container_width=True)
                 st.subheader("Histogram of Inflation Rate")
@@ -237,10 +239,13 @@ def main():
 
     st.markdown(
         """
-        <div style='display: flex; align-items: center; justify-content: center;'>
-            <img src='https://knbs.or.ke/wp-content/uploads/2021/11/KNBS-Logo.png' height='60'>
-            <span style='font-size:2em; color:#1f77b4; margin-left:20px;'>Kenya Inflation Analysis Dashboard</span>
-            <img src='https://festival.globaldatafest.org/logo.png' height='60' style='margin-left:20px;'>
+        <div style='display: flex; align-items: center; justify-content: center; margin-bottom: 2em;'>
+            <img src='https://knbs.or.ke/wp-content/uploads/2021/11/KNBS-Logo.png' height='60' style='margin-right:20px;'>
+            <img src='https://festival.globaldatafest.org/logo.png' height='60' style='margin-right:20px;'>
+            <img src='https://www.scb.se/ImageVaultFiles/id_20882/cf_1445/statistics-sweden-logo.png' height='60' style='margin-right:20px;'>
+            <span style='font-size:2em; color:#1f77b4; font-weight:bold; margin-left:20px;'>
+                Kenya Inflation Analysis Dashboard
+            </span>
         </div>
         """, unsafe_allow_html=True
     )
