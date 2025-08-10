@@ -237,9 +237,9 @@ def main():
     template_csv = "Year,Inflation Rate\n1990,15.2\n1991,18.5\n"
     st.sidebar.download_button("Download Template CSV", data=template_csv, file_name="template.csv")
 
-    st.markdown(
+    """st.markdown(
         """
-        <div style='display: flex; align-items: center; justify-content: center; margin-bottom: 2em;'>
+    """    <div style='display: flex; align-items: center; justify-content: center; margin-bottom: 2em;'>
             <img src='https://knbs.or.ke/wp-content/uploads/2021/11/KNBS-Logo.png' height='60' style='margin-right:20px;'>
             <img src='https://festival.globaldatafest.org/logo.png' height='60' style='margin-right:20px;'>
             <img src='https://www.scb.se/ImageVaultFiles/id_20882/cf_1445/statistics-sweden-logo.png' height='60' style='margin-right:20px;'>
@@ -247,8 +247,7 @@ def main():
                 Kenya Inflation Analysis Dashboard
             </span>
         </div>
-        """, unsafe_allow_html=True
-    )
+        """, """unsafe_allow_html=True)"""
 
 if __name__ == "__main__":
     main()
