@@ -4,6 +4,7 @@ import logging
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
+import inspect
 
 from preprocess import preprocess_data
 from eda import display_eda_plots
@@ -220,6 +221,11 @@ def main():
             st.plotly_chart(fig, use_container_width=True)
 
         st.success("Forecasts generated successfully!")
+
+        logger.info("arima_forecast signature: %s", inspect.signature(arima_forecast))
+        logger.info("arima_forecast file: %s", getattr(arima_forecast, '__file__', 'n/a'))
+        st.write("arima_forecast signature:", str(inspect.signature(arima_forecast)))
+        st.write("arima_forecast file:", getattr(arima_forecast, '__file__', 'n/a'))
 
     except Exception as e:
         logger.exception("App error: %s", e)
