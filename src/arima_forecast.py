@@ -1,52 +1,48 @@
-import pandas as pd
 import logging
+import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA
 from model_config import ARIMA_ORDER, FORECAST_YEARS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def arima_forecast(df):
+def arima_forecast(df: pd.DataFrame, order=None, steps=None):
     """
-    Generates ARIMA forecast for the next `forecast_steps` periods.
-
-    Args:
-        df (pd.DataFrame): DataFrame with 'Year' and 'Inflation Rate' columns.
-        forecast_steps (int): Number of future periods to forecast.
-
-    Returns:
-        pd.DataFrame: DataFrame with 'Year' and 'Forecast' columns.
+    Produces ARIMA forecast DataFrame with columns:
+    Year, Forecast, Forecast_lower, Forecast_upper
     """
-    # Input validation
-    required_cols = {'Year', 'Inflation Rate'}
-    missing_cols = required_cols - set(df.columns)
-    if missing_cols:
-        logger.error(f"Missing columns: {missing_cols}")
-        raise ValueError(f"Input DataFrame must contain columns: {required_cols}")
-    if df['Inflation Rate'].isnull().any():
-        logger.warning("Missing values detected in 'Inflation Rate'. Dropping rows.")
-    before = len(df)
-    df = df.dropna(subset=['Year', 'Inflation Rate']).reset_index(drop=True)
-    after = len(df)
-    if after < before:
-        logger.info(f"Dropped {before - after} rows due to missing or invalid data.")
-    if len(df) < 5:
-        logger.error("Not enough data points for ARIMA forecasting (minimum 5 required).")
-        raise ValueError("Not enough data points for ARIMA forecasting (minimum 5 required).")
+    order = order or ARIMA_ORDER
+    steps = steps or FORECAST_YEARS
 
-    # Fit ARIMA model
-    model = ARIMA(df['Inflation Rate'], order=ARIMA_ORDER)
-    model_fit = model.fit()
-    forecast_obj = model_fit.get_forecast(steps=FORECAST_YEARS)
-    forecast = forecast_obj.predicted_mean
-    conf_int = forecast_obj.conf_int()
-    last_year = df['Year'].dt.year.iloc[-1] if hasattr(df['Year'], 'dt') else int(df['Year'].iloc[-1])
-    forecast_years = [last_year + i for i in range(1, FORECAST_YEARS + 1)]
-    forecast_df = pd.DataFrame({
-        'Year': forecast_years,
-        'Forecast': forecast.values,
-        'Forecast_lower': conf_int.iloc[:, 0].values,
-        'Forecast_upper': conf_int.iloc[:, 1].values
-    })
-    logger.info("ARIMA forecast generated successfully.")
-    return forecast_df
+    series = df['Inflation Rate'].astype(float).reset_index(drop=True)
+    if series.empty:
+        return pd.DataFrame(columns=['Year','Forecast','Forecast_lower','Forecast_upper'])
+
+    try:
+        model = ARIMA(series, order=order)
+        model_fit = model.fit()
+        forecast_obj = model_fit.get_forecast(steps=steps)
+        forecast = forecast_obj.predicted_mean
+        conf_int = forecast_obj.conf_int()
+
+        last_year = df['Year'].dt.year.iloc[-1] if hasattr(df['Year'], 'dt') else int(df['Year'].iloc[-1])
+        forecast_years = [last_year + i for i in range(1, steps+1)]
+        forecast_df = pd.DataFrame({
+            'Year': forecast_years,
+            'Forecast': forecast.values,
+            'Forecast_lower': conf_int.iloc[:,0].values,
+            'Forecast_upper': conf_int.iloc[:,1].values
+        })
+        logger.info("ARIMA forecast generated.")
+        return forecast_df
+    except Exception as e:
+        logger.exception("ARIMA forecasting failed: %s", e)
+        # Return empty structured DF on failure
+        last_year = df['Year'].dt.year.iloc[-1] if hasattr(df['Year'], 'dt') else int(df['Year'].iloc[-1])
+        forecast_years = [last_year + i for i in range(1, (steps or 1)+1)]
+        return pd.DataFrame({
+            'Year': forecast_years,
+            'Forecast': [float('nan')] * len(forecast_years),
+            'Forecast_lower': [float('nan')] * len(forecast_years),
+            'Forecast_upper': [float('nan')] * len(forecast_years)
+        })

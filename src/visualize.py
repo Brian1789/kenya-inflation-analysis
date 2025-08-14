@@ -26,11 +26,30 @@ def generate_report(arima_df, prophet_df, output_dir):
         f.write("![Forecast Comparison](forecast_comparison.png)\n")
 
 def compute_metrics(actual, forecast):
-    actual, forecast = np.array(actual), np.array(forecast)
-    mape = np.mean(np.abs((actual - forecast) / actual)) * 100
-    rmse = np.sqrt(np.mean((actual - forecast) ** 2))
-    mae = np.mean(np.abs(actual - forecast))
-    return mape, rmse, mae
+    """
+    Compute MAPE, RMSE, MAE between two iterables/Series.
+    Returns (mape, rmse, mae). Handles NaNs by dropping aligned pairs.
+    """
+    a = pd.Series(actual).astype(float).reset_index(drop=True)
+    f = pd.Series(forecast).astype(float).reset_index(drop=True)
+    # align lengths
+    n = min(len(a), len(f))
+    if n == 0:
+        return float('nan'), float('nan'), float('nan')
+    a = a.iloc[:n]
+    f = f.iloc[:n]
+    mask = a.notna() & f.notna() & (a != 0)
+    if not mask.any():
+        # if denominator would be 0 for MAPE, compute MAE/RMSE only
+        mae = (a - f).abs().mean()
+        rmse = np.sqrt(((a - f)**2).mean())
+        return float('nan'), float(rmse), float(mae)
+    a_masked = a[mask]
+    f_masked = f[mask]
+    mape = ( (a_masked - f_masked).abs() / a_masked.abs() ).mean() * 100
+    rmse = np.sqrt(((a - f)**2).mean())
+    mae = (a - f).abs().mean()
+    return float(mape), float(rmse), float(mae)
 
 if __name__ == "__main__":
     arima_path = os.path.join("..", "results", "forecasts", "arima_forecast.csv")

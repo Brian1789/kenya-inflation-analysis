@@ -1,8 +1,10 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from statsmodels.tsa.stattools import acf, pacf
 import os
 import streamlit as st
+import plotly.graph_objects as go
 
 def validate_df(df):
     required_cols = {'Year', 'Inflation Rate'}
@@ -37,34 +39,45 @@ def generate_eda_plots(df, output_dir):
     plt.savefig(os.path.join(output_dir, "acf_pacf.png"))
     plt.close()
 
+def plot_timeseries_plotly(df, title="Inflation Rate Over Time"):
+    fig = go.Figure()
+    x = df['Year'].dt.year if hasattr(df['Year'], 'dt') else df['Year']
+    fig.add_trace(go.Scattergl(x=x, y=df['Inflation Rate'], mode='lines+markers', name='Inflation Rate',
+                               line=dict(color='#00CC96')))
+    fig.update_layout(title=title, xaxis_title="Year", yaxis_title="Inflation Rate (%)", template="plotly_white")
+    return fig
+
+def plot_histogram_plotly(series, title="Histogram of Inflation Rate"):
+    fig = go.Figure()
+    fig.add_trace(go.Histogram(x=series, marker_color='#636EFA', nbinsx=20))
+    fig.update_layout(title=title, xaxis_title="Inflation Rate (%)", yaxis_title="Count", template="plotly_white")
+    return fig
+
+def plot_acf_plotly(series, lags=20, title="ACF"):
+    acf_vals = acf(series.dropna(), nlags=lags)
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=list(range(len(acf_vals))), y=acf_vals, marker_color='#1f77b4', name='ACF'))
+    fig.update_layout(title=title, xaxis_title="Lag", yaxis_title="ACF", template="plotly_white")
+    return fig
+
+def plot_pacf_plotly(series, lags=20, title="PACF"):
+    pacf_vals = pacf(series.dropna(), nlags=lags)
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=list(range(len(pacf_vals))), y=pacf_vals, marker_color='#ff7f0e', name='PACF'))
+    fig.update_layout(title=title, xaxis_title="Lag", yaxis_title="PACF", template="plotly_white")
+    return fig
+
 def display_eda_plots(df):
     """
-    Display EDA plots in Streamlit.
+    Returns a dict of figures for the EDA tab (caller can st.plotly_chart them).
     """
-    validate_df(df)
-    st.subheader("Exploratory Data Analysis (EDA)")
-    # Time series plot
-    st.write("### Historical Inflation Rates")
-    fig1, ax1 = plt.subplots(figsize=(12, 6))
-    ax1.plot(df['Year'], df['Inflation Rate'], marker='o', color='#1f77b4')
-    ax1.set_xlabel("Year")
-    ax1.set_ylabel("Inflation Rate (%)")
-    ax1.grid(True, linestyle='--', alpha=0.7)
-    st.pyplot(fig1)
-    # ACF/PACF plots
-    st.write("### Autocorrelation and Partial Autocorrelation")
-    fig2, (ax2, ax3) = plt.subplots(2, 1, figsize=(12, 8))
-    plot_acf(df['Inflation Rate'], lags=10, ax=ax2, title='Autocorrelation (ACF)')
-    plot_pacf(df['Inflation Rate'], lags=10, ax=ax3, method='ywm', title='Partial Autocorrelation (PACF)')
-    plt.tight_layout()
-    st.pyplot(fig2)
-    # Summary statistics
-    st.write("### Summary Statistics")
-    st.dataframe(df[['Year', 'Inflation Rate']].describe())
-    # Missing values
-    missing = df.isnull().sum()
-    st.write("### Missing Values")
-    st.write(missing)
+    figs = {
+        "timeseries": plot_timeseries_plotly(df),
+        "histogram": plot_histogram_plotly(df['Inflation Rate']),
+        "acf": plot_acf_plotly(df['Inflation Rate']),
+        "pacf": plot_pacf_plotly(df['Inflation Rate'])
+    }
+    return figs
 
 if __name__ == "__main__":
     # For standalone script usage

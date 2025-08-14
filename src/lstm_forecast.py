@@ -1,81 +1,67 @@
-import pandas as pd
-import numpy as np
 import logging
+import numpy as np
+import pandas as pd
 from model_config import FORECAST_YEARS, LSTM_LOOK_BACK, LSTM_EPOCHS, LSTM_UNITS
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Input, LSTM, Dense
-from sklearn.preprocessing import MinMaxScaler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def lstm_forecast(df, look_back=LSTM_LOOK_BACK):
+def lstm_forecast(df: pd.DataFrame, look_back=None, epochs=None, units=None):
     """
-    Generates LSTM forecast for the next `forecast_years` periods.
-    Args:
-        df (pd.DataFrame): DataFrame with 'Year' and 'Inflation Rate' columns.
-        forecast_years (int): Number of future periods to forecast.
-        look_back (int): Number of previous time steps to use as input.
-    Returns:
-        pd.DataFrame: DataFrame with 'Year' and 'Forecast' columns.
+    Lightweight LSTM-style forecasting. If TF is not present, fallback to naive persistence forecast.
+    Returns DataFrame with Year, Forecast, Forecast_lower (NaN), Forecast_upper (NaN)
     """
-    required_cols = {'Year', 'Inflation Rate'}
-    missing_cols = required_cols - set(df.columns)
-    if missing_cols:
-        logger.error(f"Missing columns: {missing_cols}")
-        raise ValueError(f"Input DataFrame must contain columns: {required_cols}")
-    if df['Inflation Rate'].isnull().any():
-        logger.warning("Missing values detected in 'Inflation Rate'. Dropping rows.")
-    before = len(df)
-    df = df.dropna(subset=['Year', 'Inflation Rate']).reset_index(drop=True)
-    after = len(df)
-    if after < before:
-        logger.info(f"Dropped {before - after} rows due to missing or invalid data.")
-    if len(df) < look_back + 1:
-        logger.error(f"Not enough data points for LSTM forecasting (minimum {look_back + 1} required).")
-        raise ValueError(f"Not enough data points for LSTM forecasting (minimum {look_back + 1} required).")
+    look_back = look_back or LSTM_LOOK_BACK
+    epochs = epochs or LSTM_EPOCHS
+    units = units or LSTM_UNITS
 
-    # Prepare data
-    values = df['Inflation Rate'].values.reshape(-1, 1)
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    scaled = scaler.fit_transform(values)
+    series = df['Inflation Rate'].astype(float).reset_index(drop=True)
+    if series.empty:
+        return pd.DataFrame(columns=['Year','Forecast','Forecast_lower','Forecast_upper'])
 
-    # Create sequences
-    X, y = [], []
-    for i in range(len(scaled) - look_back):
-        X.append(scaled[i:i+look_back, 0])
-        y.append(scaled[i+look_back, 0])
-    X, y = np.array(X), np.array(y)
-    X = X.reshape((X.shape[0], X.shape[1], 1))
+    # Try to use TensorFlow if available; otherwise fall back to persistence forecast
+    try:
+        import tensorflow as tf  # type: ignore
+        from tensorflow.keras.models import Sequential
+        from tensorflow.keras.layers import LSTM, Dense
+        from sklearn.preprocessing import MinMaxScaler
+        scaler = MinMaxScaler()
+        data = scaler.fit_transform(series.values.reshape(-1,1))
 
-    # Build LSTM model
-    model = Sequential()
-    model.add(Input(shape=(look_back, 1)))
-    model.add(LSTM(LSTM_UNITS, activation='relu'))
-    model.add(Dense(1))
-    model.compile(optimizer='adam', loss='mse')
-    model.fit(X, y, epochs=LSTM_EPOCHS, verbose=0)
+        # build sequences
+        X, y = [], []
+        for i in range(look_back, len(data)):
+            X.append(data[i-look_back:i, 0])
+            y.append(data[i, 0])
+        if not X:
+            # Not enough data for sequences; fallback to last-value forecast
+            raise ValueError("Not enough data for LSTM sequences")
 
-    # Forecast future values
-    last_seq = scaled[-look_back:].reshape((1, look_back, 1))
-    forecasts = []
-    for _ in range(FORECAST_YEARS):
-        next_pred = model.predict(last_seq, verbose=0)[0][0]
-        forecasts.append(next_pred)
-        last_seq = np.append(last_seq[:, 1:, :], [[[next_pred]]], axis=1)
+        X = np.array(X).reshape(-1, look_back, 1)
+        y = np.array(y)
 
-    # Inverse scale
-    forecasts = scaler.inverse_transform(np.array(forecasts).reshape(-1, 1)).flatten()
-    # Fix: get integer year for addition
-    last_year = df['Year'].dt.year.iloc[-1] if hasattr(df['Year'], 'dt') else int(df['Year'].iloc[-1])
-    forecast_years_list = [last_year + i for i in range(1, FORECAST_YEARS + 1)]
+        model = Sequential()
+        model.add(LSTM(units, input_shape=(look_back,1)))
+        model.add(Dense(1))
+        model.compile(optimizer='adam', loss='mse')
+        model.fit(X, y, epochs=min(epochs,50), verbose=0)
 
-    # Fix: include nan columns for consistency
-    forecast_df = pd.DataFrame({
-        'Year': forecast_years_list,
-        'Forecast': forecasts,
-        'Forecast_lower': [float('nan')] * len(forecasts),
-        'Forecast_upper': [float('nan')] * len(forecasts)
-    })
-    logger.info("LSTM forecast generated successfully.")
-    return forecast_df
+        # Forecast iteratively
+        last_seq = data[-look_back:,0].tolist()
+        preds = []
+        for _ in range(FORECAST_YEARS):
+            seq_in = np.array(last_seq[-look_back:]).reshape(1, look_back, 1)
+            p = model.predict(seq_in, verbose=0)[0,0]
+            preds.append(p)
+            last_seq.append(p)
+        preds = scaler.inverse_transform(np.array(preds).reshape(-1,1)).flatten()
+        last_year = df['Year'].dt.year.iloc[-1] if hasattr(df['Year'], 'dt') else int(df['Year'].iloc[-1])
+        years = [last_year + i for i in range(1, len(preds)+1)]
+        return pd.DataFrame({'Year': years, 'Forecast': preds, 'Forecast_lower':[float('nan')]*len(preds), 'Forecast_upper':[float('nan')]*len(preds)})
+    except Exception as e:
+        logger.info("TensorFlow LSTM not available or failed (%s). Falling back to persistence forecast.", e)
+        last_val = series.iloc[-1]
+        last_year = df['Year'].dt.year.iloc[-1] if hasattr(df['Year'], 'dt') else int(df['Year'].iloc[-1])
+        years = [last_year + i for i in range(1, FORECAST_YEARS+1)]
+        preds = [last_val]*FORECAST_YEARS
+        return pd.DataFrame({'Year': years, 'Forecast': preds, 'Forecast_lower':[float('nan')]*len(preds), 'Forecast_upper':[float('nan')]*len(preds)})
