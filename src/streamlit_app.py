@@ -5,7 +5,6 @@ import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 import inspect
-
 from preprocess import preprocess_data
 from eda import display_eda_plots
 from arima_forecast import arima_forecast
@@ -26,6 +25,17 @@ def load_data(uploaded_file):
 def preprocess_cached(df):
     return preprocess_data(df)
 
+# Color palette used across the app
+COLOR_PALETTE = {
+    "primary": "#00d1ff",
+    "accent": "#ff7f50",
+    "success": "#7df97d",
+    "muted": "#9aaab1",
+    "bg": "#0b1220",
+    "panel": "#071322",
+    "text": "#cbe7ff"
+}
+
 def plot_forecast_plotly(historical_df, arima_df, prophet_df, lstm_df, models_to_show):
     fig = go.Figure()
     # Historical
@@ -34,40 +44,70 @@ def plot_forecast_plotly(historical_df, arima_df, prophet_df, lstm_df, models_to
         y=historical_df['Inflation Rate'],
         mode='lines+markers',
         name='Historical',
-        line=dict(color='black', dash='dot')
+        line=dict(color=COLOR_PALETTE['muted'], dash='dot'),
+        marker=dict(size=6, color=COLOR_PALETTE['muted'])
     ))
     # ARIMA with CI
     if 'ARIMA' in models_to_show and arima_df is not None and not arima_df.empty:
-        fig.add_trace(go.Scatter(x=arima_df['Year'], y=arima_df['Forecast'], mode='lines+markers', name='ARIMA'))
+        fig.add_trace(go.Scatter(x=arima_df['Year'], y=arima_df['Forecast'], mode='lines+markers', name='ARIMA',
+                                 line=dict(color=COLOR_PALETTE['primary'], width=2)))
         if 'Forecast_lower' in arima_df and 'Forecast_upper' in arima_df:
             fig.add_trace(go.Scatter(x=arima_df['Year'], y=arima_df['Forecast_upper'], mode='lines',
                                      line=dict(color='rgba(0,0,0,0)'), showlegend=False))
             fig.add_trace(go.Scatter(x=arima_df['Year'], y=arima_df['Forecast_lower'], mode='lines',
                                      line=dict(color='rgba(0,0,0,0)'), fill='tonexty',
-                                     fillcolor='rgba(31,119,180,0.15)', name='ARIMA CI'))
+                                     fillcolor='rgba(0,209,255,0.12)', name='ARIMA CI'))
     # Prophet with CI
     if 'Prophet' in models_to_show and prophet_df is not None and not prophet_df.empty:
         x = prophet_df['ds'].dt.year if 'ds' in prophet_df and hasattr(prophet_df['ds'], 'dt') else prophet_df.get('Year', prophet_df.get('ds'))
         y = prophet_df['yhat'] if 'yhat' in prophet_df else prophet_df.get('Forecast')
-        fig.add_trace(go.Scatter(x=x, y=y, mode='lines+markers', name='Prophet'))
+        fig.add_trace(go.Scatter(x=x, y=y, mode='lines+markers', name='Prophet',
+                                 line=dict(color=COLOR_PALETTE['accent'], width=2)))
         if 'yhat_lower' in prophet_df and 'yhat_upper' in prophet_df:
             fig.add_trace(go.Scatter(x=x, y=prophet_df['yhat_upper'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False))
-            fig.add_trace(go.Scatter(x=x, y=prophet_df['yhat_lower'], mode='lines', line=dict(color='rgba(0,0,0,0)'), fill='tonexty', fillcolor='rgba(255,127,14,0.12)', name='Prophet CI'))
-    # LSTM (no CI or NaN)
+            fig.add_trace(go.Scatter(x=x, y=prophet_df['yhat_lower'], mode='lines', line=dict(color='rgba(0,0,0,0)'), fill='tonexty', fillcolor='rgba(255,127,80,0.10)', name='Prophet CI'))
+    # LSTM (no CI)
     if 'LSTM' in models_to_show and lstm_df is not None and not lstm_df.empty:
-        fig.add_trace(go.Scatter(x=lstm_df['Year'], y=lstm_df['Forecast'], mode='lines+markers', name='LSTM'))
-    fig.update_layout(title='Historical vs Forecast Comparison', xaxis_title='Year', yaxis_title='Inflation Rate (%)', template="plotly_white")
+        fig.add_trace(go.Scatter(x=lstm_df['Year'], y=lstm_df['Forecast'], mode='lines+markers', name='LSTM',
+                                 line=dict(color=COLOR_PALETTE['success'], width=2)))
+
+    # Layout: techy dark
+    fig.update_layout(
+        title='Historical vs Forecast Comparison',
+        xaxis_title='Year',
+        yaxis_title='Inflation Rate (%)',
+        template="plotly_dark",
+        paper_bgcolor=COLOR_PALETTE['bg'],
+        plot_bgcolor=COLOR_PALETTE['panel'],
+        font=dict(color=COLOR_PALETTE['text'], family="Source Sans Pro"),
+        legend=dict(bgcolor='rgba(0,0,0,0.2)', bordercolor='rgba(255,255,255,0.05)')
+    )
+    fig.update_xaxes(gridcolor='rgba(255,255,255,0.03)')
+    fig.update_yaxes(gridcolor='rgba(255,255,255,0.03)')
     return fig
 
 def header():
-    # Simple text-only header (images removed for now)
+    # gradient header + small CSS for techy look (text-only, no KPI cards)
     st.markdown(
-        """
-        <div style='text-align:center;margin-bottom:1rem;'>
-          <h1 style='color:#1f77b4;margin:0;font-weight:700;'>Kenya Inflation Forecast Dashboard</h1>
-          <p style='color:#6c757d;margin-top:6px;font-size:1rem;'>
-            KNBS • Global Data Festival • Statistics Sweden
-          </p>
+        f"""
+        <style>
+        .tech-header {{
+            background: linear-gradient(90deg, {COLOR_PALETTE['panel']}, {COLOR_PALETTE['bg']});
+            padding: 22px;
+            border-radius: 8px;
+            color: {COLOR_PALETTE['text']};
+            margin-bottom: 18px;
+            text-align:center;
+        }}
+        .tech-sub {{
+            color: rgba(203,231,255,0.84);
+            margin-top:6px;
+            font-size:0.95rem;
+        }}
+        </style>
+        <div class="tech-header">
+          <h1 style="margin:0; font-weight:800; font-size:34px; color:{COLOR_PALETTE['primary']};">Kenya Inflation Forecast Dashboard</h1>
+          <div class="tech-sub">KNBS • Global Data Festival • Statistics Sweden</div>
         </div>
         """, unsafe_allow_html=True
     )
@@ -104,8 +144,6 @@ def main():
 
     dataset_choice = st.sidebar.selectbox("Select Dataset", ["Monthly", "Quarterly"])
 
-    # top-of-page KPI cards removed — KPIs are shown inside the Forecasts tab instead
-
     if uploaded_file is None:
         st.info("Upload a CSV to see EDA and forecasts.")
         return
@@ -127,18 +165,16 @@ def main():
         # Tabs
         tab1, tab2, tab3 = st.tabs(["📊 EDA", "📈 Forecasts", "🔀 Comparison"])
 
-        # --- generate forecasts first (cached internally in each module if needed)
+        # --- generate forecasts
         with st.spinner("Generating forecasts..."):
             arima_results = arima_forecast(cleaned_df, order=(arima_p, arima_d, arima_q), steps=forecast_years)
             prophet_results = prophet_forecast(cleaned_df, params={'changepoint_prior_scale': prophet_changepoint, 'seasonality_mode': prophet_seasonality}, periods=forecast_years)
-            # LSTM trained with provided params (will fallback if TF missing)
             lstm_results = lstm_forecast(cleaned_df, look_back=lstm_look_back, epochs=lstm_epochs, units=lstm_units)
 
         # --- compute performance metrics (align last N actuals with first N forecasts where possible)
         N = min(len(cleaned_df), forecast_years)
         actual = cleaned_df['Inflation Rate'].iloc[-N:].reset_index(drop=True)
 
-        # handle potential different forecast df shapes/column names
         def first_n(series_like, n):
             if series_like is None:
                 return pd.Series([float('nan')]*n)
@@ -146,14 +182,13 @@ def main():
             return s.iloc[:n].reset_index(drop=True)
 
         arima_pred = first_n(arima_results['Forecast'] if 'Forecast' in arima_results.columns else arima_results.get('yhat', []), N)
-        prophet_pred = first_n(prophet_results['yhat' if 'yhat' in prophet_results.columns else 'Forecast'], N)
+        prophet_pred = first_n(prophet_results['yhat'] if 'yhat' in prophet_results.columns else prophet_results.get('Forecast', []), N)
         lstm_pred = first_n(lstm_results['Forecast'] if 'Forecast' in lstm_results.columns else lstm_results.get('yhat', []), N)
 
         arima_mape, arima_rmse, arima_mae = compute_metrics(actual, arima_pred)
         prophet_mape, prophet_rmse, prophet_mae = compute_metrics(actual, prophet_pred)
         lstm_mape, lstm_rmse, lstm_mae = compute_metrics(actual, lstm_pred)
 
-        # Find best model accuracy (100 - best MAPE). If all NaN, show NaN
         mape_candidates = [v for v in [arima_mape, prophet_mape, lstm_mape] if pd.notna(v)]
         best_model_accuracy = (100 - min(mape_candidates)) if mape_candidates else float('nan')
 
@@ -182,10 +217,10 @@ def main():
 
         # --- Forecasts tab
         with tab2:
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Latest Inflation", f"{cleaned_df['Inflation Rate'].iloc[-1]:.2f}%")
-            col2.metric("Forecast Range", f"{forecast_years} years")
-            col3.metric("Best Model Accuracy", f"{best_model_accuracy:.2f}%" if pd.notna(best_model_accuracy) else "—")
+            with st.expander("Key KPIs"):
+                st.metric("Latest Inflation", f"{cleaned_df['Inflation Rate'].iloc[-1]:.2f}%")
+                st.metric("Forecast Range", f"{forecast_years} years")
+                st.metric("Best Model Accuracy", f"{best_model_accuracy:.2f}%" if pd.notna(best_model_accuracy) else "—")
 
             with st.expander("Model performance metrics"):
                 st.dataframe(perf_df)
@@ -208,7 +243,6 @@ def main():
         with tab3:
             st.write("### Historical vs Forecast Comparison (Interactive)")
             fig = plot_forecast_plotly(historical_df, arima_results, prophet_results, lstm_results, models_to_show)
-            # Add annotation for a notable event (example 1993)
             try:
                 peak_value = historical_df['Inflation Rate'].max()
                 fig.add_vline(x=1993, line_dash="dash", line_color="red")
@@ -218,15 +252,6 @@ def main():
             st.plotly_chart(fig, use_container_width=True)
 
         st.success("Forecasts generated successfully!")
-
-        # Log arima_forecast inspection info (do not render debug text in the UI)
-        try:
-            logger.info("arima_forecast signature: %s", inspect.signature(arima_forecast))
-            mod = inspect.getmodule(arima_forecast)
-            logger.info("arima_forecast module: %s", arima_forecast.__module__)
-            logger.info("arima_forecast source file: %s", getattr(mod, '__file__', arima_forecast.__code__.co_filename))
-        except Exception as _ex:
-            logger.debug("Could not inspect arima_forecast: %s", _ex)
 
     except Exception as e:
         logger.exception("App error: %s", e)
