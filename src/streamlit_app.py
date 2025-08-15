@@ -60,13 +60,14 @@ def plot_forecast_plotly(historical_df, arima_df, prophet_df, lstm_df, models_to
     return fig
 
 def header():
+    # Simple text-only header (images removed for now)
     st.markdown(
         """
-        <div style='display:flex;align-items:center;justify-content:center;margin-bottom:1rem;'>
-          <img src='https://knbs.or.ke/wp-content/uploads/2021/11/KNBS-Logo.png' height='50' style='margin-right:12px;'>
-          <img src='https://festival.globaldatafest.org/logo.png' height='50' style='margin-right:12px;'>
-          <img src='https://www.scb.se/ImageVaultFiles/id_20882/cf_1445/statistics-sweden-logo.png' height='50' style='margin-right:12px;'>
-          <span style='font-size:28px;color:#1f77b4;font-weight:600;margin-left:12px;'>Kenya Inflation Forecast Dashboard</span>
+        <div style='text-align:center;margin-bottom:1rem;'>
+          <h1 style='color:#1f77b4;margin:0;font-weight:700;'>Kenya Inflation Forecast Dashboard</h1>
+          <p style='color:#6c757d;margin-top:6px;font-size:1rem;'>
+            KNBS • Global Data Festival • Statistics Sweden
+          </p>
         </div>
         """, unsafe_allow_html=True
     )
