@@ -104,11 +104,7 @@ def main():
 
     dataset_choice = st.sidebar.selectbox("Select Dataset", ["Monthly", "Quarterly"])
 
-    # Placeholder values for KPIs (will be updated after forecasts)
-    k1, k2, k3 = st.columns(3)
-    k1.metric("Latest Inflation", "—")
-    k2.metric("Forecast Range", f"{forecast_years} years")
-    k3.metric("Best Model Accuracy", "—")
+    # top-of-page KPI cards removed — KPIs are shown inside the Forecasts tab instead
 
     if uploaded_file is None:
         st.info("Upload a CSV to see EDA and forecasts.")
@@ -150,7 +146,7 @@ def main():
             return s.iloc[:n].reset_index(drop=True)
 
         arima_pred = first_n(arima_results['Forecast'] if 'Forecast' in arima_results.columns else arima_results.get('yhat', []), N)
-        prophet_pred = first_n(prophet_results['yhat'] if 'yhat' in prophet_results.columns else prophet_results.get('Forecast', []), N)
+        prophet_pred = first_n(prophet_results['yhat' if 'yhat' in prophet_results.columns else 'Forecast'], N)
         lstm_pred = first_n(lstm_results['Forecast'] if 'Forecast' in lstm_results.columns else lstm_results.get('yhat', []), N)
 
         arima_mape, arima_rmse, arima_mae = compute_metrics(actual, arima_pred)
@@ -223,10 +219,14 @@ def main():
 
         st.success("Forecasts generated successfully!")
 
-        logger.info("arima_forecast signature: %s", inspect.signature(arima_forecast))
-        logger.info("arima_forecast file: %s", getattr(arima_forecast, '__file__', 'n/a'))
-        st.write("arima_forecast signature:", str(inspect.signature(arima_forecast)))
-        st.write("arima_forecast file:", getattr(arima_forecast, '__file__', 'n/a'))
+        # Log arima_forecast inspection info (do not render debug text in the UI)
+        try:
+            logger.info("arima_forecast signature: %s", inspect.signature(arima_forecast))
+            mod = inspect.getmodule(arima_forecast)
+            logger.info("arima_forecast module: %s", arima_forecast.__module__)
+            logger.info("arima_forecast source file: %s", getattr(mod, '__file__', arima_forecast.__code__.co_filename))
+        except Exception as _ex:
+            logger.debug("Could not inspect arima_forecast: %s", _ex)
 
     except Exception as e:
         logger.exception("App error: %s", e)
